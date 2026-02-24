@@ -1,0 +1,24 @@
+{
+  "name": "api",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "scripts": {
+    "dev": "bunx tsx watch index.ts"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@clerk/express": "^1.7.74",
+    "@clerk/nextjs": "^6.38.1",
+    "@solana/web3.js": "^1.98.4",
+    "@types/express": "^5.0.6",
+    "cors": "^2.8.6",
+    "db": "*",
+    "express": "^5.2.1"
+  }
+}
