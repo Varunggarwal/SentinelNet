@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Globe, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Globe, Plus, Trash2, X } from "lucide-react";
 import { useWebsites } from "@/hooks/useWebsites";
 import axios from "axios";
 import { API_BACKEND_URL } from "@/config";
@@ -87,12 +87,14 @@ function getLastChecked(ticks: { createdAt: string }[]) {
 
 export default function Dashboard() {
   const { getToken } = useAuth();
-  const { websites, refreshWebsites } = useWebsites();
+  const { websites, refreshWebsites, deleteWebsite } = useWebsites();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string>("");
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
@@ -138,6 +140,25 @@ export default function Dashboard() {
       }
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeleteWebsite = async (websiteId: string) => {
+    setDeleteError("");
+    try {
+      setDeletingId(websiteId);
+      await deleteWebsite(websiteId);
+      if (expandedId === websiteId) {
+        setExpandedId(null);
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setDeleteError(err.response?.data?.message ?? "Failed to delete website monitor.");
+      } else {
+        setDeleteError("Failed to delete website monitor.");
+      }
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -368,13 +389,43 @@ export default function Dashboard() {
                     >
                       <div
                         style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: "#374151",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
                           marginBottom: 10,
+                          gap: 12,
                         }}
                       >
-                        Last 30 minutes status:
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: "#374151",
+                          }}
+                        >
+                          Last 30 minutes status:
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteWebsite(website.id)}
+                          disabled={deletingId === website.id}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            border: "1px solid #fecaca",
+                            background: deletingId === website.id ? "#fee2e2" : "#fef2f2",
+                            color: "#b91c1c",
+                            borderRadius: 8,
+                            padding: "6px 10px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: deletingId === website.id ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          <Trash2 size={13} />
+                          {deletingId === website.id ? "Deleting..." : "Delete"}
+                        </button>
                       </div>
 
                       {aggregated.length === 0 ? (
@@ -436,6 +487,17 @@ export default function Dashboard() {
                       {aggregated.length === 0 && (
                         <div style={{ fontSize: 13, color: "#9ca3af", paddingTop: 8 }}>
                           No data has been validated yet.
+                        </div>
+                      )}
+                      {deleteError && (
+                        <div
+                          style={{
+                            marginTop: 10,
+                            fontSize: 12,
+                            color: "#b91c1c",
+                          }}
+                        >
+                          {deleteError}
                         </div>
                       )}
 

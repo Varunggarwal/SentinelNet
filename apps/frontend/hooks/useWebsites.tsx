@@ -31,6 +31,23 @@ export function useWebsites() {
     setWebsites(response.data.websites ?? []);
   }, [getToken]);
 
+  const deleteWebsite = useCallback(
+    async (websiteId: string) => {
+      const token = await getToken();
+      await axios.delete(`${API_BACKEND_URL}/api/v1/website/`, {
+        headers: {
+          Authorization: token ?? undefined,
+        },
+        data: {
+          websiteId,
+        },
+      });
+
+      setWebsites((prev) => prev.filter((website) => website.id !== websiteId));
+    },
+    [getToken]
+  );
+
   useEffect(() => {
     const timeoutId = setTimeout(refreshWebsites, 0);
     const intervalId = setInterval(refreshWebsites, 1000 * 60 * 1);
@@ -41,5 +58,5 @@ export function useWebsites() {
     };
   }, [refreshWebsites]);
 
-  return { websites, refreshWebsites };
+  return { websites, refreshWebsites, deleteWebsite };
 }
