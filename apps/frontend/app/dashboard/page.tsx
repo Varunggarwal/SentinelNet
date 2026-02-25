@@ -7,8 +7,17 @@ import axios from "axios";
 import { API_BACKEND_URL } from "@/config";
 import { useAuth } from "@clerk/nextjs";
 
+type Tick = { id: string; createdAt: string; status: string; latency: number };
+
+function normalizeStatus(status: string): "up" | "down" | "unknown" {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "bad" || normalized === "down") return "down";
+  if (normalized === "good" || normalized === "up") return "up";
+  return "unknown";
+}
+
 // Aggregate ticks into 3-minute windows
-function aggregateTicks(ticks: { id: string; createdAt: string; status: string; latency: number }[]) {
+function aggregateTicks(ticks: Tick[]) {
   if (!ticks || ticks.length === 0) return [];
 
   // Sort ticks by createdAt ascending
@@ -39,7 +48,7 @@ function aggregateTicks(ticks: { id: string; createdAt: string; status: string; 
     });
 
     if (inWindow.length > 0) {
-      const downCount = inWindow.filter((t) => t.status === "down" || t.status === "DOWN").length;
+      const downCount = inWindow.filter((t) => normalizeStatus(t.status) === "down").length;
       const avgLatency = Math.round(inWindow.reduce((sum, t) => sum + t.latency, 0) / inWindow.length);
       windows.push({
         windowStart: new Date(windowStart),
@@ -56,8 +65,8 @@ function aggregateTicks(ticks: { id: string; createdAt: string; status: string; 
 }
 
 function getUptimePercentage(ticks: { status: string }[]) {
-  if (!ticks || ticks.length === 0) return 100;
-  const upCount = ticks.filter((t) => t.status !== "down" && t.status !== "DOWN").length;
+  if (!ticks || ticks.length === 0) return null;
+  const upCount = ticks.filter((t) => normalizeStatus(t.status) === "up").length;
   return parseFloat(((upCount / ticks.length) * 100).toFixed(1));
 }
 
@@ -213,7 +222,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {websites.map((website: { id: string; url: string; ticks: { id: string; createdAt: string; status: string; latency: number }[] }) => {
+            {websites.map((website: { id: string; url: string; ticks: Tick[] }) => {
               const isExpanded = expandedId === website.id;
               const uptime = getUptimePercentage(website.ticks);
               const lastChecked = getLastChecked(website.ticks);
@@ -225,7 +234,20 @@ export default function Dashboard() {
                       (a, b) =>
                         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                     )[0].status;
-              const isUp = currentStatus !== "down" && currentStatus !== "DOWN";
+              const normalizedCurrentStatus =
+                currentStatus === "unknown" ? "unknown" : normalizeStatus(currentStatus);
+              const statusColor =
+                normalizedCurrentStatus === "unknown"
+                  ? "#9ca3af"
+                  : normalizedCurrentStatus === "up"
+                  ? "#22c55e"
+                  : "#ef4444";
+              const statusGlow =
+                normalizedCurrentStatus === "unknown"
+                  ? "0 0 0 3px rgba(156,163,175,0.2)"
+                  : normalizedCurrentStatus === "up"
+                  ? "0 0 0 3px rgba(34,197,94,0.18)"
+                  : "0 0 0 3px rgba(239,68,68,0.18)";
 
               return (
                 <div
@@ -241,7 +263,7 @@ export default function Dashboard() {
                 >
                   {/* Row header */}
                   <button
-                      onClick={() => toggleExpand(website.id)}
+                    onClick={() => toggleExpand(website.id)}
                     style={{
                       width: "100%",
                       display: "flex",
@@ -260,14 +282,12 @@ export default function Dashboard() {
                         width: 12,
                         height: 12,
                         borderRadius: "50%",
-                        background: isUp ? "#22c55e" : "#ef4444",
+                        background: statusColor,
                         flexShrink: 0,
-                        boxShadow: isUp
-                          ? "0 0 0 3px rgba(34,197,94,0.18)"
-                          : "0 0 0 3px rgba(239,68,68,0.18)",
+                        boxShadow: statusGlow,
                       }}
                     />
-                    {/* Name + URL */}
+                    {/* Name + URL + inline status bar */}
                     <div style={{ flex: 1 }}>
                       <div
                         style={{
@@ -279,7 +299,44 @@ export default function Dashboard() {
                       >
                         {website.url.replace(/^https?:\/\//, "").split("/")[0]}
                       </div>
-                      <div style={{ fontSize: 13, color: "#6b7280" }}>{website.url}</div>
+                      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 6 }}>
+                        {website.url}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 4,
+                          alignItems: "center",
+                        }}
+                      >
+                        {(aggregated.length > 0
+                          ? aggregated.slice(-10).map((w, i) => (
+                              <div
+                                key={i}
+                                title={`${w.windowStart.toLocaleTimeString()} • ${w.avgLatency}ms • ${w.count} check${w.count > 1 ? "s" : ""}`}
+                                style={{
+                                  width: 28,
+                                  height: 10,
+                                  borderRadius: 3,
+                                  background: w.status === "up" ? "#22c55e" : "#ef4444",
+                                  opacity: 0.9,
+                                }}
+                              />
+                            ))
+                          : Array.from({ length: 10 }, (_, i) => (
+                              <div
+                                key={`placeholder-${i}`}
+                                title="No validated checks yet"
+                                style={{
+                                  width: 28,
+                                  height: 10,
+                                  borderRadius: 3,
+                                  background: "#d1d5db",
+                                  opacity: 0.95,
+                                }}
+                              />
+                            )))}
+                      </div>
                     </div>
                     {/* Uptime */}
                     <div
@@ -290,7 +347,7 @@ export default function Dashboard() {
                         marginRight: 8,
                       }}
                     >
-                      {uptime}% uptime
+                      {uptime === null ? "No data yet" : `${uptime}% uptime`}
                     </div>
                     {/* Chevron */}
                     {isExpanded ? (
@@ -321,8 +378,28 @@ export default function Dashboard() {
                       </div>
 
                       {aggregated.length === 0 ? (
-                        <div style={{ fontSize: 13, color: "#9ca3af", padding: "8px 0" }}>
-                          No data available yet.
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 4,
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                            padding: "4px 0",
+                          }}
+                        >
+                          {Array.from({ length: 10 }, (_, i) => (
+                            <div
+                              key={`expanded-placeholder-${i}`}
+                              title="No validated checks yet"
+                              style={{
+                                width: 34,
+                                height: 14,
+                                borderRadius: 4,
+                                background: "#d1d5db",
+                                opacity: 0.95,
+                              }}
+                            />
+                          ))}
                         </div>
                       ) : (
                         <div
@@ -354,6 +431,11 @@ export default function Dashboard() {
                               }
                             />
                           ))}
+                        </div>
+                      )}
+                      {aggregated.length === 0 && (
+                        <div style={{ fontSize: 13, color: "#9ca3af", paddingTop: 8 }}>
+                          No data has been validated yet.
                         </div>
                       )}
 

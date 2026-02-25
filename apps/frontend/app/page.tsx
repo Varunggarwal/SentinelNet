@@ -5,7 +5,7 @@ import { Activity, Bell, Clock, Server, ArrowRight, Check} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 function App() {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode] = useState(true);
   const router = useRouter();
 
   useEffect(() => {

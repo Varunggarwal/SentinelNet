@@ -15,16 +15,21 @@ app.post("/api/v1/website", authMiddleware, async (req, res) => {
     const userId = req.userId!;
     const { url } = req.body;
 
-    const data = await prismaClient.websites.create({
+    if (!url || typeof url !== "string") {
+        return res.status(400).json({ message: "Invalid or missing url" });
+    }
+
+    // Create website record
+    const website = await prismaClient.websites.create({
         data: {
             userId,
             url
         }
-    })
+    });
 
     res.json({
-        id: data.id
-    })
+        id: website.id
+    });
 })
 
 app.get("/api/v1/website/status", authMiddleware, async (req, res) => {
