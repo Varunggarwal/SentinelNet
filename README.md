@@ -1,84 +1,154 @@
-# Turborepo starter
+# SentinelNet
 
-This Turborepo starter is maintained by the Turborepo core team.
+SentinelNet is a decentralized incentivized uptime monitoring protocol built using a modern Turborepo monorepo architecture.
 
-## Using this example
+It distributes website health checks across independent validator nodes and rewards participants for honest reporting, creating a trust-minimized uptime verification layer.
 
-Run the following command:
+---
 
-```sh
-npx create-turbo@latest
-```
+## Using this repository
 
-## What's inside?
+Clone the repository:
 
-This Turborepo includes the following packages/apps:
+git clone https://github.com/Varunggarwal/SentinelNet.git  
+cd sentinelnet  
 
-### Apps and Packages
+Install dependencies:
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+pnpm install  
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+---
 
-### Utilities
+## What’s inside?
 
-This Turborepo has some additional tools already setup for you:
+This Turborepo includes the following apps and packages:
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+### Apps
 
-### Build
+- frontend – Next.js dashboard for monitoring websites and validator activity  
+- api – Backend aggregation service handling uptime consensus and reward logic  
+- hub – Coordination service for validator orchestration  
+- validator – Distributed node service that performs uptime checks  
 
-To build all apps and packages, run the following command:
+### Packages
 
-```
-cd my-turborepo
-pnpm build
-```
+- @repo/db – Prisma schema and database layer  
+- @repo/common – Shared types and utilities  
+- @repo/ui – Shared UI components  
+- @repo/eslint-config – ESLint configuration  
+- @repo/typescript-config – Shared TypeScript configuration  
 
-### Develop
+All applications and packages are written in TypeScript.
 
-To develop all apps and packages, run the following command:
+---
 
-```
-cd my-turborepo
-pnpm dev
-```
+## Architecture Overview
 
-### Remote Caching
+SentinelNet operates in four layers:
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+1. Website Registration  
+   Users register endpoints for monitoring.
 
-Turborepo can use a technique known as [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+2. Distributed Validation  
+   Validator nodes periodically ping websites and submit signed reports.
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
+3. Consensus & Aggregation  
+   The hub aggregates reports and determines uptime status via consensus.
 
-```
-cd my-turborepo
-npx turbo login
-```
+4. Incentive Distribution  
+   Validators are rewarded for accurate, consistent participation.
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+---
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+## Utilities
 
-```
-npx turbo link
-```
+This Turborepo is configured with:
 
-## Useful Links
+- TypeScript for static type checking  
+- ESLint for code quality enforcement  
+- Prettier for formatting  
+- Prisma ORM for database abstraction  
+- Turbo for task orchestration and caching  
 
-Learn more about the power of Turborepo:
+---
 
-- [Tasks](https://turbo.build/repo/docs/core-concepts/monorepos/running-tasks)
-- [Caching](https://turbo.build/repo/docs/core-concepts/caching)
-- [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching)
-- [Filtering](https://turbo.build/repo/docs/core-concepts/monorepos/filtering)
-- [Configuration Options](https://turbo.build/repo/docs/reference/configuration)
-- [CLI Usage](https://turbo.build/repo/docs/reference/command-line-reference)
+## Build
+
+To build all apps and packages:
+
+pnpm build  
+
+To build a specific app:
+
+pnpm turbo run build --filter=frontend  
+
+---
+
+## Develop
+
+To run all services in development mode:
+
+pnpm dev  
+
+To run a specific service:
+
+pnpm turbo run dev --filter=api  
+
+---
+
+## Environment Variables
+
+Create a `.env` file at the root or per app:
+
+DATABASE_URL=  
+NEXT_PUBLIC_API_URL=  
+JWT_SECRET=  
+
+Do not commit `.env` to version control.
+
+---
+
+## Deployment
+
+Frontend is deployed on Vercel.  
+Backend services can be deployed on Render, Railway, or similar platforms.
+
+Monorepo root directory should not be deployed directly — configure deployment per app.
+
+---
+
+## Remote Caching
+
+SentinelNet uses Turborepo’s built-in caching.
+
+To enable remote caching with Vercel:
+
+npx turbo login  
+npx turbo link  
+
+This links your Turborepo to Vercel’s Remote Cache.
+
+---
+
+## Roadmap
+
+- On-chain reward settlement  
+- Validator reputation scoring  
+- Slashing for dishonest reporting  
+- Multi-region consensus expansion  
+- Analytics dashboard improvements  
+- Decentralized coordination layer  
+
+---
+
+## License
+
+MIT License  
+
+---
+
+## Author
+
+Varun Aggarwal  
+Computer Science & Data Science  
+Focused on distributed systems, AI, and scalable infrastructure
