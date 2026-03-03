@@ -1,11 +1,10 @@
-/* eslint-disable @next/next/no-img-element */
 "use client"
 import React, { useEffect, useState } from 'react';
-import { Activity, Bell, Clock, Server, ArrowRight, Check} from 'lucide-react';
+import { Activity, Bell, Clock, Server, ArrowRight, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 function App() {
-  const [darkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -178,7 +177,7 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode; titl
   );
 }
 
-function PricingCard({ title, price, features, featured = false }: { title: string; price: string | number; features: string[]; featured?: boolean }) {
+function PricingCard({ title, price, features, featured = false }: { title: string; price: string; features: string[]; featured?: boolean }) {
   return (
     <div className={`p-8 rounded-lg ${
       featured
@@ -191,7 +190,7 @@ function PricingCard({ title, price, features, featured = false }: { title: stri
         <span className="text-sm">/month</span>
       </div>
       <ul className="space-y-3 mb-8">
-        {features.map((feature: string, index: number) => (
+        {features.map((feature, index) => (
           <li key={index} className="flex items-center space-x-2">
             <Check className="h-5 w-5" />
             <span>{feature}</span>

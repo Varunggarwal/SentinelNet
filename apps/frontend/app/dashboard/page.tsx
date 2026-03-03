@@ -1,687 +1,266 @@
 "use client";
+import React, { useState, useMemo } from 'react';
+import { ChevronDown, ChevronUp, Globe, Plus, Moon, Sun } from 'lucide-react';
+import { useWebsites } from '@/hooks/useWebsites';
+import axios from 'axios';
+import { API_BACKEND_URL } from '@/config';
+import { useAuth } from '@clerk/nextjs';
 
-import { useState } from "react";
-import { ChevronDown, ChevronUp, Globe, Plus, Trash2, X } from "lucide-react";
-import { useWebsites } from "@/hooks/useWebsites";
-import axios from "axios";
-import { API_BACKEND_URL } from "@/config";
-import { useAuth } from "@clerk/nextjs";
+type UptimeStatus = "good" | "bad" | "unknown";
 
-type Tick = { id: string; createdAt: string; status: string; latency: number };
-
-function normalizeStatus(status: string): "up" | "down" | "unknown" {
-  const normalized = status.trim().toLowerCase();
-  if (normalized === "bad" || normalized === "down") return "down";
-  if (normalized === "good" || normalized === "up") return "up";
-  return "unknown";
-}
-
-// Aggregate ticks into 3-minute windows
-function aggregateTicks(ticks: Tick[]) {
-  if (!ticks || ticks.length === 0) return [];
-
-  // Sort ticks by createdAt ascending
-  const sorted = [...ticks].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+function StatusCircle({ status }: { status: UptimeStatus }) {
+  return (
+    <div className={`w-3 h-3 rounded-full ${status === 'good' ? 'bg-green-500' : status === 'bad' ? 'bg-red-500' : 'bg-gray-500'}`} />
   );
-
-  const windowMs = 3 * 60 * 1000; // 3 minutes in ms
-  const windows: {
-    windowStart: Date;
-    status: "up" | "down";
-    avgLatency: number;
-    count: number;
-  }[] = [];
-
-  if (sorted.length === 0) return windows;
-
-  const firstTime = new Date(sorted[0].createdAt).getTime();
-  const lastTime = new Date(sorted[sorted.length - 1].createdAt).getTime();
-
-  // Build windows from first to last tick
-  let windowStart = firstTime;
-  while (windowStart <= lastTime) {
-    const windowEnd = windowStart + windowMs;
-    const inWindow = sorted.filter((t) => {
-      const t_ms = new Date(t.createdAt).getTime();
-      return t_ms >= windowStart && t_ms < windowEnd;
-    });
-
-    if (inWindow.length > 0) {
-      const downCount = inWindow.filter((t) => normalizeStatus(t.status) === "down").length;
-      const avgLatency = Math.round(inWindow.reduce((sum, t) => sum + t.latency, 0) / inWindow.length);
-      windows.push({
-        windowStart: new Date(windowStart),
-        status: downCount > inWindow.length / 2 ? "down" : "up",
-        avgLatency,
-        count: inWindow.length,
-      });
-    }
-
-    windowStart += windowMs;
-  }
-
-  return windows;
 }
 
-function getUptimePercentage(ticks: { status: string }[]) {
-  if (!ticks || ticks.length === 0) return null;
-  const upCount = ticks.filter((t) => normalizeStatus(t.status) === "up").length;
-  return parseFloat(((upCount / ticks.length) * 100).toFixed(1));
-}
-
-function getLastChecked(ticks: { createdAt: string }[]) {
-  if (!ticks || ticks.length === 0) return null;
-  const sorted = [...ticks].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+function UptimeTicks({ ticks }: { ticks: UptimeStatus[] }) {
+  return (
+    <div className="flex gap-1 mt-2">
+      {ticks.map((tick, index) => (
+        <div
+          key={index}
+          className={`w-8 h-2 rounded ${
+            tick === 'good' ? 'bg-green-500' : tick === 'bad' ? 'bg-red-500' : 'bg-gray-500'
+          }`}
+        />
+      ))}
+    </div>
   );
-  const lastDate = new Date(sorted[0].createdAt);
-  const diffMs = Date.now() - lastDate.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return "just now";
-  if (diffMins === 1) return "1 minute ago";
-  if (diffMins < 60) return `${diffMins} minutes ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
 }
 
-export default function Dashboard() {
-  const { getToken } = useAuth();
-  const { websites, refreshWebsites, deleteWebsite } = useWebsites();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [url, setUrl] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState("");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState<string>("");
-
-  const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id);
-  };
-
-  const handleCreateWebsite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCreateError("");
-
-    const rawUrl = url.trim();
-    if (!rawUrl) {
-      setCreateError("Please enter a website URL.");
-      return;
-    }
-
-    let urlToSave = rawUrl;
-    if (!/^https?:\/\//i.test(urlToSave)) {
-      urlToSave = `https://${urlToSave}`;
-    }
-
-    try {
-      setCreating(true);
-      const token = await getToken();
-
-      await axios.post(
-        `${API_BACKEND_URL}/api/v1/website`,
-        { url: urlToSave },
-        {
-          headers: {
-            Authorization: token ?? undefined,
-          },
-        }
-      );
-
-      setUrl("");
-      setIsModalOpen(false);
-      await refreshWebsites();
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setCreateError(err.response?.data?.message ?? "Failed to create website monitor.");
-      } else {
-        setCreateError("Failed to create website monitor.");
-      }
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleDeleteWebsite = async (websiteId: string) => {
-    setDeleteError("");
-    try {
-      setDeletingId(websiteId);
-      await deleteWebsite(websiteId);
-      if (expandedId === websiteId) {
-        setExpandedId(null);
-      }
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setDeleteError(err.response?.data?.message ?? "Failed to delete website monitor.");
-      } else {
-        setDeleteError("Failed to delete website monitor.");
-      }
-    } finally {
-      setDeletingId(null);
-    }
-  };
+function CreateWebsiteModal({ isOpen, onClose }: { isOpen: boolean; onClose: (url: string | null) => void }) {
+  const [url, setUrl] = useState('');
+  if (!isOpen) return null;
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#f4f5f7",
-        fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-        padding: "0",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          maxWidth: 860,
-          margin: "0 auto",
-          padding: "48px 24px 0",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 32,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <Globe size={28} color="#2563eb" strokeWidth={2} />
-            <h1
-              style={{
-                fontSize: 26,
-                fontWeight: 700,
-                color: "#111827",
-                margin: 0,
-                letterSpacing: "-0.5px",
-              }}
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+        <h2 className="text-xl font-semibold mb-4 dark:text-white">Add New Website</h2>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              URL
+            </label>
+            <input
+              type="url"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+              placeholder="https://example.com"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end space-x-3 mt-6">
+            <button
+              type="button"
+              onClick={() => onClose(null)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
             >
-              Uptime Monitor
-            </h1>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              onClick={() => onClose(url)}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+            >
+              Add Website
+            </button>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "#2563eb",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              padding: "9px 18px",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#1d4ed8")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "#2563eb")}
-          >
-            <Plus size={16} />
-            Add Website
-          </button>
-        </div>
-
-        {/* Website List */}
-        {websites.length === 0 ? (
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 14,
-              border: "1px solid #e5e7eb",
-              padding: "64px 24px",
-              textAlign: "center",
-            }}
-          >
-            <Globe size={48} color="#d1d5db" style={{ margin: "0 auto 16px" }} />
-            <p style={{ color: "#6b7280", fontSize: 16, margin: 0 }}>
-              No monitors yet. Add your first website to get started.
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {websites.map((website: { id: string; url: string; ticks: Tick[] }) => {
-              const isExpanded = expandedId === website.id;
-              const uptime = getUptimePercentage(website.ticks);
-              const lastChecked = getLastChecked(website.ticks);
-              const aggregated = aggregateTicks(website.ticks);
-              const currentStatus =
-                website.ticks.length === 0
-                  ? "unknown"
-                  : website.ticks.sort(
-                      (a, b) =>
-                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                    )[0].status;
-              const normalizedCurrentStatus =
-                currentStatus === "unknown" ? "unknown" : normalizeStatus(currentStatus);
-              const statusColor =
-                normalizedCurrentStatus === "unknown"
-                  ? "#9ca3af"
-                  : normalizedCurrentStatus === "up"
-                  ? "#22c55e"
-                  : "#ef4444";
-              const statusGlow =
-                normalizedCurrentStatus === "unknown"
-                  ? "0 0 0 3px rgba(156,163,175,0.2)"
-                  : normalizedCurrentStatus === "up"
-                  ? "0 0 0 3px rgba(34,197,94,0.18)"
-                  : "0 0 0 3px rgba(239,68,68,0.18)";
-
-              return (
-                <div
-                  key={website.id}
-                  style={{
-                    background: "#fff",
-                    borderRadius: 14,
-                    border: "1px solid #e5e7eb",
-                    overflow: "hidden",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-                    transition: "box-shadow 0.15s",
-                  }}
-                >
-                  {/* Row header */}
-                  <button
-                    onClick={() => toggleExpand(website.id)}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "20px 24px",
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      gap: 14,
-                    }}
-                  >
-                    {/* Status dot */}
-                    <span
-                      style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: "50%",
-                        background: statusColor,
-                        flexShrink: 0,
-                        boxShadow: statusGlow,
-                      }}
-                    />
-                    {/* Name + URL + inline status bar */}
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          fontSize: 15,
-                          color: "#111827",
-                          marginBottom: 2,
-                        }}
-                      >
-                        {website.url.replace(/^https?:\/\//, "").split("/")[0]}
-                      </div>
-                      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 6 }}>
-                        {website.url}
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 4,
-                          alignItems: "center",
-                        }}
-                      >
-                        {(aggregated.length > 0
-                          ? aggregated.slice(-10).map((w, i) => (
-                              <div
-                                key={i}
-                                title={`${w.windowStart.toLocaleTimeString()} • ${w.avgLatency}ms • ${w.count} check${w.count > 1 ? "s" : ""}`}
-                                style={{
-                                  width: 28,
-                                  height: 10,
-                                  borderRadius: 3,
-                                  background: w.status === "up" ? "#22c55e" : "#ef4444",
-                                  opacity: 0.9,
-                                }}
-                              />
-                            ))
-                          : Array.from({ length: 10 }, (_, i) => (
-                              <div
-                                key={`placeholder-${i}`}
-                                title="No validated checks yet"
-                                style={{
-                                  width: 28,
-                                  height: 10,
-                                  borderRadius: 3,
-                                  background: "#d1d5db",
-                                  opacity: 0.95,
-                                }}
-                              />
-                            )))}
-                      </div>
-                    </div>
-                    {/* Uptime */}
-                    <div
-                      style={{
-                        fontSize: 14,
-                        color: "#374151",
-                        fontWeight: 600,
-                        marginRight: 8,
-                      }}
-                    >
-                      {uptime === null ? "No data yet" : `${uptime}% uptime`}
-                    </div>
-                    {/* Chevron */}
-                    {isExpanded ? (
-                      <ChevronUp size={18} color="#9ca3af" />
-                    ) : (
-                      <ChevronDown size={18} color="#9ca3af" />
-                    )}
-                  </button>
-
-                  {/* Expanded section */}
-                  {isExpanded && (
-                    <div
-                      style={{
-                        borderTop: "1px solid #f3f4f6",
-                        padding: "16px 24px 20px",
-                        background: "#fafafa",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          marginBottom: 10,
-                          gap: 12,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: "#374151",
-                          }}
-                        >
-                          Last 30 minutes status:
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void handleDeleteWebsite(website.id)}
-                          disabled={deletingId === website.id}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            border: "1px solid #fecaca",
-                            background: deletingId === website.id ? "#fee2e2" : "#fef2f2",
-                            color: "#b91c1c",
-                            borderRadius: 8,
-                            padding: "6px 10px",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            cursor: deletingId === website.id ? "not-allowed" : "pointer",
-                          }}
-                        >
-                          <Trash2 size={13} />
-                          {deletingId === website.id ? "Deleting..." : "Delete"}
-                        </button>
-                      </div>
-
-                      {aggregated.length === 0 ? (
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 4,
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                            padding: "4px 0",
-                          }}
-                        >
-                          {Array.from({ length: 10 }, (_, i) => (
-                            <div
-                              key={`expanded-placeholder-${i}`}
-                              title="No validated checks yet"
-                              style={{
-                                width: 34,
-                                height: 14,
-                                borderRadius: 4,
-                                background: "#d1d5db",
-                                opacity: 0.95,
-                              }}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 4,
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                          }}
-                        >
-                          {aggregated.map((w, i) => (
-                            <div
-                              key={i}
-                              title={`${w.windowStart.toLocaleTimeString()} • ${w.avgLatency}ms • ${w.count} check${w.count > 1 ? "s" : ""}`}
-                              style={{
-                                width: 34,
-                                height: 14,
-                                borderRadius: 4,
-                                background: w.status === "up" ? "#22c55e" : "#ef4444",
-                                cursor: "default",
-                                transition: "opacity 0.15s",
-                                opacity: 0.9,
-                              }}
-                              onMouseEnter={(e) =>
-                                (e.currentTarget.style.opacity = "1")
-                              }
-                              onMouseLeave={(e) =>
-                                (e.currentTarget.style.opacity = "0.9")
-                              }
-                            />
-                          ))}
-                        </div>
-                      )}
-                      {aggregated.length === 0 && (
-                        <div style={{ fontSize: 13, color: "#9ca3af", paddingTop: 8 }}>
-                          No data has been validated yet.
-                        </div>
-                      )}
-                      {deleteError && (
-                        <div
-                          style={{
-                            marginTop: 10,
-                            fontSize: 12,
-                            color: "#b91c1c",
-                          }}
-                        >
-                          {deleteError}
-                        </div>
-                      )}
-
-                      {lastChecked && (
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#9ca3af",
-                            marginTop: 10,
-                          }}
-                        >
-                          Last checked: {lastChecked}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
+    </div>
+  );
+}
 
-      {isModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.4)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 50,
-            padding: 16,
-          }}
-          onClick={() => {
-            if (creating) return;
-            setCreateError("");
-            setIsModalOpen(false);
-          }}
-        >
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 14,
-              padding: 24,
-              width: "100%",
-              maxWidth: 420,
-              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 16,
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "#111827",
-                  margin: 0,
-                }}
-              >
-                Add Website Monitor
-              </h2>
-              <button
-                onClick={() => {
-                  if (creating) return;
-                  setCreateError("");
-                  setIsModalOpen(false);
-                }}
-                disabled={creating}
-                aria-label="Close modal"
-                style={{
-                  border: "none",
-                  background: "transparent",
-                  cursor: creating ? "not-allowed" : "pointer",
-                  color: "#6b7280",
-                  padding: 4,
-                }}
-              >
-                <X size={18} />
-              </button>
-            </div>
+interface ProcessedWebsite {
+  id: string;
+  url: string;
+  status: UptimeStatus;
+  uptimePercentage: number;
+  lastChecked: string;
+  uptimeTicks: UptimeStatus[];
+}
 
-            <form onSubmit={handleCreateWebsite}>
-              <label
-                htmlFor="website-url"
-                style={{
-                  display: "block",
-                  fontSize: 13,
-                  color: "#374151",
-                  fontWeight: 600,
-                  marginBottom: 8,
-                }}
-              >
-                Website URL
-              </label>
+function WebsiteCard({ website }: { website: ProcessedWebsite }) {
+  const [isExpanded, setIsExpanded] = useState(false);
 
-              <input
-                id="website-url"
-                type="text"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="example.com or https://example.com"
-                disabled={creating}
-                style={{
-                  width: "100%",
-                  border: "1px solid #d1d5db",
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                  fontSize: 14,
-                  color: "#111827",
-                  outline: "none",
-                  marginBottom: 12,
-                }}
-              />
-
-              {createError && (
-                <div
-                  style={{
-                    background: "#fef2f2",
-                    color: "#b91c1c",
-                    border: "1px solid #fecaca",
-                    borderRadius: 8,
-                    fontSize: 13,
-                    padding: "8px 10px",
-                    marginBottom: 12,
-                  }}
-                >
-                  {createError}
-                </div>
-              )}
-
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (creating) return;
-                    setCreateError("");
-                    setIsModalOpen(false);
-                  }}
-                  disabled={creating}
-                  style={{
-                    flex: 1,
-                    background: "#f3f4f6",
-                    color: "#374151",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "10px 14px",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: creating ? "not-allowed" : "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={creating}
-                  style={{
-                    flex: 1,
-                    background: creating ? "#93c5fd" : "#2563eb",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "10px 14px",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: creating ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {creating ? "Creating..." : "Create Monitor"}
-                </button>
-              </div>
-            </form>
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+      <div
+        className="p-4 cursor-pointer flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center space-x-4">
+          <StatusCircle status={website.status} />
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white">{website.url}</h3>
           </div>
+        </div>
+        <div className="flex items-center space-x-4">
+          <span className="text-sm text-gray-600 dark:text-gray-300">
+            {website.uptimePercentage.toFixed(1)}% uptime
+          </span>
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+          )}
+        </div>
+      </div>
+      
+      {isExpanded && (
+        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700">
+          <div className="mt-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">Last 30 minutes status:</p>
+            <UptimeTicks ticks={website.uptimeTicks} />
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Last checked: {website.lastChecked}
+          </p>
         </div>
       )}
     </div>
   );
 }
+
+function App() {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const {websites, refreshWebsites} = useWebsites();
+  const { getToken } = useAuth();
+
+  const processedWebsites = useMemo(() => {
+    return websites.map(website => {
+      // Sort ticks by creation time
+      const sortedTicks = [...website.ticks].sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      // Get the most recent 30 minutes of ticks
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      const recentTicks = sortedTicks.filter(tick => 
+        new Date(tick.createdAt) > thirtyMinutesAgo
+      );
+
+      // Aggregate ticks into 3-minute windows (10 windows total)
+      const windows: UptimeStatus[] = [];
+
+      for (let i = 0; i < 10; i++) {
+        const windowStart = new Date(Date.now() - (i + 1) * 3 * 60 * 1000);
+        const windowEnd = new Date(Date.now() - i * 3 * 60 * 1000);
+        
+        const windowTicks = recentTicks.filter(tick => {
+          const tickTime = new Date(tick.createdAt);
+          return tickTime >= windowStart && tickTime < windowEnd;
+        });
+
+        // Window is considered up if majority of ticks are up
+        const upTicks = windowTicks.filter(tick => tick.status === 'Good').length;
+        windows[9 - i] = windowTicks.length === 0 ? "unknown" : (upTicks / windowTicks.length) >= 0.5 ? "good" : "bad";
+      }
+
+      // Calculate overall status and uptime percentage
+      const totalTicks = sortedTicks.length;
+      const upTicks = sortedTicks.filter(tick => tick.status === 'Good').length;
+      const uptimePercentage = totalTicks === 0 ? 100 : (upTicks / totalTicks) * 100;
+
+      // Get the most recent status
+      const currentStatus = windows[windows.length - 1];
+
+      // Format the last checked time
+      const lastChecked = sortedTicks[0]
+        ? new Date(sortedTicks[0].createdAt).toLocaleTimeString()
+        : 'Never';
+
+      return {
+        id: website.id,
+        url: website.url,
+        status: currentStatus,
+        uptimePercentage,
+        lastChecked,
+        uptimeTicks: windows,
+      };
+    });
+  }, [websites]);
+
+  // Toggle dark mode
+  React.useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center space-x-2">
+            <Globe className="w-8 h-8 text-blue-600" />
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Uptime Monitor</h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+            >
+              {isDarkMode ? (
+                <Sun className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              ) : (
+                <Moon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              )}
+            </button>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Website</span>
+            </button>
+          </div>
+        </div>
+        
+        <div className="space-y-4">
+          {processedWebsites.map((website) => (
+            <WebsiteCard key={website.id} website={website} />
+          ))}
+        </div>
+      </div>
+
+      <CreateWebsiteModal
+        isOpen={isModalOpen}
+        onClose={async (url) => {
+            if (url === null) {
+                setIsModalOpen(false);
+                return;
+            }
+
+            const token = await getToken();
+            setIsModalOpen(false)
+            
+            if (!token) {
+                alert('Authentication failed. Please sign in again.');
+                return;
+            }
+
+            axios.post(`${API_BACKEND_URL}/api/v1/website`, {
+                url,
+            }, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+            .then(() => {
+                refreshWebsites();
+                alert('Website added successfully!');
+            })
+            .catch((error) => {
+                console.error('Error adding website:', error);
+                alert(`Failed to add website: ${error.response?.data?.details || error.message}`);
+            })
+        }}
+      />
+    </div>
+  );
+}
+
+export default App;

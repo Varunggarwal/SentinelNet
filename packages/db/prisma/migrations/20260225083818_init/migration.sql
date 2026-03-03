@@ -10,20 +10,12 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
-CREATE TABLE "Websites" (
-    "id" TEXT NOT NULL,
-    "url" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-
-    CONSTRAINT "Websites_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "Validator" (
     "id" TEXT NOT NULL,
     "publicKey" TEXT NOT NULL,
     "location" TEXT NOT NULL,
     "ip" TEXT NOT NULL,
+    "pendingPayouts" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "Validator_pkey" PRIMARY KEY ("id")
 );
@@ -40,8 +32,18 @@ CREATE TABLE "WebsiteTick" (
     CONSTRAINT "WebsiteTick_pkey" PRIMARY KEY ("id")
 );
 
--- AddForeignKey
-ALTER TABLE "WebsiteTick" ADD CONSTRAINT "WebsiteTick_websiteId_fkey" FOREIGN KEY ("websiteId") REFERENCES "Websites"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- CreateTable
+CREATE TABLE "Websites" (
+    "id" TEXT NOT NULL,
+    "url" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "disabled" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "Websites_pkey" PRIMARY KEY ("id")
+);
 
 -- AddForeignKey
 ALTER TABLE "WebsiteTick" ADD CONSTRAINT "WebsiteTick_validatorId_fkey" FOREIGN KEY ("validatorId") REFERENCES "Validator"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WebsiteTick" ADD CONSTRAINT "WebsiteTick_websiteId_fkey" FOREIGN KEY ("websiteId") REFERENCES "Websites"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

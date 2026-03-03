@@ -3,45 +3,44 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"  // or mysql/sqlite
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id String @id @default(uuid())
+  id    String @id @default(uuid())
   email String
 }
 
-model Websites{
-  id String @id  @default(uuid())
-  url String
-  userId String
-  ticks WebsiteTick[]
-  disabled Boolean @default(false)
+model Validator {
+  id             String        @id @default(uuid())
+  publicKey      String
+  location       String
+  ip             String
+  pendingPayouts Int           @default(0)
+  ticks          WebsiteTick[]
 }
 
-
-model Validator{
-  id String @id @default(uuid())
-  publicKey String
-  location String
-  ip String 
-  ticks WebsiteTick[]
-}
-
-model WebsiteTick{
-  id String @id @default(uuid())
-  websiteId String
+model WebsiteTick {
+  id          String        @id @default(uuid())
+  websiteId   String
   validatorId String
-  createdAt  DateTime
-  status   WebsiteStatus
-  latency Float
-  website Websites  @relation(fields:[websiteId], references:[id])
-  validator Validator  @relation(fields:[validatorId], references:[id])
-
+  createdAt   DateTime
+  status      WebsiteStatus
+  latency     Float
+  validator   Validator     @relation(fields: [validatorId], references: [id])
+  website     Websites      @relation(fields: [websiteId], references: [id])
 }
 
-enum WebsiteStatus{
+model Websites {
+  id       String        @id @default(uuid())
+  url      String
+  userId   String
+  disabled Boolean       @default(false)
+  ticks    WebsiteTick[]
+}
+
+enum WebsiteStatus {
   Good
   Bad
-
 }

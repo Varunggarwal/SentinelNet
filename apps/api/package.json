@@ -2,23 +2,26 @@
   "name": "api",
   "module": "index.ts",
   "type": "module",
-  "private": true,
+  "scripts": {
+    "dev": "bun run --watch index.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
-  "scripts": {
-    "dev": "bunx tsx watch index.ts"
-  },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.0.0"
   },
   "dependencies": {
     "@clerk/express": "^1.7.74",
-    "@clerk/nextjs": "^6.38.1",
-    "@solana/web3.js": "^1.98.4",
-    "@types/express": "^5.0.6",
-    "cors": "^2.8.6",
+    "@solana/web3.js": "^1.98.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "cors": "^2.8.5",
     "db": "*",
-    "express": "^5.2.1"
+    "dotenv": "^17.3.1",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "jwt": "^0.2.0"
   }
 }

@@ -1,35 +1,42 @@
+import "dotenv/config";
 import express from "express"
 import { authMiddleware } from "./middleware";
-import prismaClient from "db/client";
+import { prismaClient } from "db/client";
 import cors from "cors";
 import { Transaction, SystemProgram, Connection } from "@solana/web3.js";
-
+import { clerkMiddleware } from "@clerk/express";
 
 const connection = new Connection("https://api.mainnet-beta.solana.com");
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(clerkMiddleware());
 
 app.post("/api/v1/website", authMiddleware, async (req, res) => {
-    const userId = req.userId!;
-    const { url } = req.body;
+    try {
+        const userId = req.userId!;
+        const { url } = req.body;
 
-    if (!url || typeof url !== "string") {
-        return res.status(400).json({ message: "Invalid or missing url" });
-    }
-
-    // Create website record
-    const website = await prismaClient.websites.create({
-        data: {
-            userId,
-            url
+        if (!url) {
+            return res.status(400).json({ error: 'URL is required' });
         }
-    });
 
-    res.json({
-        id: website.id
-    });
+        const data = await prismaClient.websites.create({
+            data: {
+                id: `website-${Date.now()}`,
+                url,
+                userId
+            }
+        })
+
+        res.json({
+            id: data.id
+        })
+    } catch (error) {
+        console.error('Error creating website:', error);
+        res.status(500).json({ error: 'Failed to create website', details: (error as Error).message });
+    }
 })
 
 app.get("/api/v1/website/status", authMiddleware, async (req, res) => {
@@ -93,3 +100,5 @@ app.post("/api/v1/payout/:validatorId", async (req, res) => {
 })
 
 app.listen(8080);
+
+console.log("App started");
