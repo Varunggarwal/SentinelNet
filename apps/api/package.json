@@ -21,7 +21,6 @@
     "db": "*",
     "dotenv": "^17.3.1",
     "express": "^4.21.2",
-    "jsonwebtoken": "^9.0.3",
-    "jwt": "^0.2.0"
+    "jsonwebtoken": "^9.0.3"
   }
 }

@@ -1,25 +1,30 @@
 import "dotenv/config";
-import express from "express"
+import express, { Router } from "express"
 import { authMiddleware } from "./middleware";
 import { prismaClient } from "db/client";
 import cors from "cors";
-import { Transaction, SystemProgram, Connection } from "@solana/web3.js";
+import { Connection } from "@solana/web3.js";
 import { clerkMiddleware } from "@clerk/express";
 
 const connection = new Connection("https://api.mainnet-beta.solana.com");
 const app = express();
+const router = Router();
 
 app.use(cors());
 app.use(express.json());
 app.use(clerkMiddleware());
 
-app.post("/api/v1/website", authMiddleware, async (req, res) => {
+// Apply auth middleware to all routes in this router
+router.use(authMiddleware as any);
+
+router.post("/website", async (req, res): Promise<void> => {
     try {
         const userId = req.userId!;
         const { url } = req.body;
 
         if (!url) {
-            return res.status(400).json({ error: 'URL is required' });
+            res.status(400).json({ error: 'URL is required' });
+            return;
         }
 
         const data = await prismaClient.websites.create({
@@ -32,72 +37,94 @@ app.post("/api/v1/website", authMiddleware, async (req, res) => {
 
         res.json({
             id: data.id
-        })
+        });
     } catch (error) {
         console.error('Error creating website:', error);
         res.status(500).json({ error: 'Failed to create website', details: (error as Error).message });
     }
-})
+});
 
-app.get("/api/v1/website/status", authMiddleware, async (req, res) => {
-    const websiteId = req.query.websiteId! as unknown as string;
-    const userId = req.userId;
+router.get("/website/status", async (req, res): Promise<void> => {
+    try {
+        const websiteId = req.query.websiteId! as unknown as string;
+        const userId = req.userId;
 
-    const data = await prismaClient.websites.findFirst({
-        where: {
-            id: websiteId,
-            userId,
-            disabled: false
-        },
-        include: {
-            ticks: true
+        const data = await prismaClient.websites.findFirst({
+            where: {
+                id: websiteId,
+                userId,
+                disabled: false
+            },
+            include: {
+                ticks: true
+            }
+        })
+
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching website status:', error);
+        res.status(500).json({ error: 'Failed to fetch website status', details: (error as Error).message });
+    }
+});
+
+router.get("/websites", async (req, res): Promise<void> => {
+    try {
+        const userId = req.userId!;
+
+        const websites = await prismaClient.websites.findMany({
+            where: {
+                userId,
+                disabled: false
+            },
+            include: {
+                ticks: true
+            }
+        })
+
+        res.json({
+            websites
+        });
+    } catch (error) {
+        console.error('Error fetching websites:', error);
+        res.status(500).json({ error: 'Failed to fetch websites', details: (error as Error).message });
+    }
+});
+
+router.delete("/website", async (req, res): Promise<void> => {
+    try {
+        const websiteId = req.body.websiteId;
+        const userId = req.userId!;
+
+        if (!websiteId) {
+            res.status(400).json({ error: 'Website ID is required' });
+            return;
         }
-    })
 
-    res.json(data)
+        await prismaClient.websites.update({
+            where: {
+                id: websiteId,
+                userId
+            },
+            data: {
+                disabled: true
+            }
+        })
 
-})
+        res.json({
+            message: "Deleted website successfully"
+        });
+    } catch (error) {
+        console.error('Error deleting website:', error);
+        res.status(500).json({ error: 'Failed to delete website', details: (error as Error).message });
+    }
+});
 
-app.get("/api/v1/websites", authMiddleware, async (req, res) => {
-    const userId = req.userId!;
+router.post("/payout/:validatorId", async (req, res): Promise<void> => {
+    // TODO: Implement payout logic
+    res.status(501).json({ error: 'Not implemented' });
+});
 
-    const websites = await prismaClient.websites.findMany({
-        where: {
-            userId,
-            disabled: false
-        },
-        include: {
-            ticks: true
-        }
-    })
-
-    res.json({
-        websites
-    })
-})
-
-app.delete("/api/v1/website/", authMiddleware, async (req, res) => {
-    const websiteId = req.body.websiteId;
-    const userId = req.userId!;
-
-    await prismaClient.websites.update({
-        where: {
-            id: websiteId,
-            userId
-        },
-        data: {
-            disabled: true
-        }
-    })
-
-    res.json({
-        message: "Deleted website successfully"
-    })
-})
-
-app.post("/api/v1/payout/:validatorId", async (req, res) => {
-   
-})
+app.use("/api/v1", router);
 
 app.listen(8080);
 
