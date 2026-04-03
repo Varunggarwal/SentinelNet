@@ -8,7 +8,7 @@ import { Connection } from "@solana/web3.js";
 const connection = new Connection("https://api.mainnet-beta.solana.com");
 const app = express();
 const router = Router();
-const port = Number(process.env.API_PORT || 8080);
+const port = Number(process.env.PORT || process.env.API_PORT || 8080);
 const clerkEnabled = Boolean(
   process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 );

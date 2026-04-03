@@ -9,7 +9,7 @@ const availableValidators: { validatorId: string, socket: ServerWebSocket<unknow
 
 const CALLBACKS : { [callbackId: string]: (data: IncomingMessage) => void } = {}
 const COST_PER_VALIDATION = 100; // in lamports
-const port = Number(process.env.HUB_PORT || 8081);
+const port = Number(process.env.PORT || process.env.HUB_PORT || 8081);
 
 Bun.serve({
     fetch(req, server) {
