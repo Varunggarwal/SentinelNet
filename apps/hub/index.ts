@@ -12,36 +12,62 @@ const COST_PER_VALIDATION = 100; // in lamports
 const port = Number(process.env.PORT || process.env.HUB_PORT || 8081);
 
 Bun.serve({
-    fetch(req, server) {
-      if (server.upgrade(req)) {
-        return;
-      }
-      return new Response("Upgrade failed", { status: 500 });
-    },
-    port,
-    websocket: {
-        async message(ws: ServerWebSocket<unknown>, message: string) {
-            const data: IncomingMessage = JSON.parse(message);
-            
-            if (data.type === 'signup') {
+  port,
 
-                const verified = await verifyMessage(
-                    `Signed message for ${data.data.callbackId}, ${data.data.publicKey}`,
-                    data.data.publicKey,
-                    data.data.signedMessage
-                );
-                if (verified) {
-                    await signupHandler(ws, data.data);
-                }
-            } else if (data.type === 'validate') {
-                CALLBACKS[data.data.callbackId](data);
-                delete CALLBACKS[data.data.callbackId];
-            }
-        },
-        async close(ws: ServerWebSocket<unknown>) {
-            availableValidators.splice(availableValidators.findIndex(v => v.socket === ws), 1);
+  fetch(req, server) {
+    const url = new URL(req.url);
+
+    // ✅ Handle WebSocket upgrade
+    if (server.upgrade(req)) {
+      return;
+    }
+
+    // ✅ Normal HTTP routes
+    if (url.pathname === "/") {
+      return new Response("Hub is running");
+    }
+
+    if (url.pathname === "/health") {
+      return Response.json({ status: "ok" });
+    }
+
+    // fallback
+    return new Response("Not found", { status: 404 });
+  },
+
+  websocket: {
+    async message(ws: ServerWebSocket<unknown>, message: string) {
+      const data: IncomingMessage = JSON.parse(message);
+
+      if (data.type === "signup") {
+        const verified = await verifyMessage(
+          `Signed message for ${data.data.callbackId}, ${data.data.publicKey}`,
+          data.data.publicKey,
+          data.data.signedMessage
+        );
+
+        if (verified) {
+          await signupHandler(ws, data.data);
         }
+      } else if (data.type === "validate") {
+        CALLBACKS[data.data.callbackId]?.(data);
+        delete CALLBACKS[data.data.callbackId];
+      }
     },
+
+    async open(ws) {
+      console.log("✅ Validator connected");
+    },
+
+    async close(ws: ServerWebSocket<unknown>) {
+      console.log("⚠️ Validator disconnected");
+
+      const index = availableValidators.findIndex(v => v.socket === ws);
+      if (index !== -1) {
+        availableValidators.splice(index, 1);
+      }
+    },
+  },
 });
 
 console.log(`Hub started on port ${port}`);
