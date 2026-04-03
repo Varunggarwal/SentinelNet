@@ -27,18 +27,29 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const content = (
+    <body
+      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+    >
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        enableSystem={false}
+        storageKey="sentinelnet-theme"
+      >
+        <Appbar />
+        {children}
+      </ThemeProvider>
+    </body>
+  );
+
   return (
     <html lang="en" suppressHydrationWarning>
-      <ClerkProvider>
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        >
-          <ThemeProvider defaultTheme="dark" attribute="class" forcedTheme="dark">
-            <Appbar />
-            {children}
-          </ThemeProvider>
-        </body>
-      </ClerkProvider>
+      {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
+        <ClerkProvider>{content}</ClerkProvider>
+      ) : (
+        content
+      )}
     </html>
   );
 }

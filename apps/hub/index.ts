@@ -9,6 +9,7 @@ const availableValidators: { validatorId: string, socket: ServerWebSocket<unknow
 
 const CALLBACKS : { [callbackId: string]: (data: IncomingMessage) => void } = {}
 const COST_PER_VALIDATION = 100; // in lamports
+const port = Number(process.env.HUB_PORT || 8081);
 
 Bun.serve({
     fetch(req, server) {
@@ -17,7 +18,7 @@ Bun.serve({
       }
       return new Response("Upgrade failed", { status: 500 });
     },
-    port: 8081,
+    port,
     websocket: {
         async message(ws: ServerWebSocket<unknown>, message: string) {
             const data: IncomingMessage = JSON.parse(message);
@@ -42,6 +43,8 @@ Bun.serve({
         }
     },
 });
+
+console.log(`Hub started on port ${port}`);
 
 async function signupHandler(ws: ServerWebSocket<unknown>, { ip, publicKey, signedMessage, callbackId }: SignupIncomingMessage) {
     const validatorDb = await prismaClient.validator.findFirst({

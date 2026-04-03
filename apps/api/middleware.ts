@@ -1,16 +1,18 @@
 import type { NextFunction, Request, Response } from "express";
 import { prismaClient } from "db/client";
 
-
 export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
     try {
-        // Check if user is authenticated via Clerk
-        const token = req.auth;
-        if (!token || !token.userId) {
+        const clerkEnabled = Boolean(
+            process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        );
+        const userId = clerkEnabled
+            ? req.auth?.userId
+            : process.env.LOCAL_USER_ID || "local-dev-user";
+
+        if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-
-        const userId = token .userId;
         
         // Ensure user exists in database
         await prismaClient.user.upsert({

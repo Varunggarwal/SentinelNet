@@ -7,12 +7,27 @@ import nacl_util from "tweetnacl-util";
 const CALLBACKS: {[callbackId: string]: (data: SignupOutgoingMessage) => void} = {}
 
 let validatorId: string | null = null;
+const hubUrl = process.env.HUB_URL || "ws://localhost:8081";
+
+function getValidatorKeypair() {
+    const privateKey = process.env.PRIVATE_KEY;
+
+    if (!privateKey) {
+        throw new Error("Missing PRIVATE_KEY. Add a JSON array secret key to your .env file before starting the validator.");
+    }
+
+    try {
+        return Keypair.fromSecretKey(
+            Uint8Array.from(JSON.parse(privateKey))
+        );
+    } catch {
+        throw new Error("Invalid PRIVATE_KEY. Expected a JSON array like [1,2,3,...] in your .env file.");
+    }
+}
 
 async function main() {
-    const keypair = Keypair.fromSecretKey(
-        Uint8Array.from(JSON.parse(process.env.PRIVATE_KEY!))
-    );
-    const ws = new WebSocket("ws://localhost:8081");
+    const keypair = getValidatorKeypair();
+    const ws = new WebSocket(hubUrl);
 
     ws.onmessage = async (event) => {
         const data: OutgoingMessage = JSON.parse(event.data);

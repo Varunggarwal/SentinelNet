@@ -1,6 +1,5 @@
 "use client";
 import { API_BACKEND_URL } from "@/config";
-import { useAuth } from "@clerk/nextjs";
 import axios from "axios";
 import { useEffect, useState } from "react";
 
@@ -15,22 +14,17 @@ interface Website {
     }[];
 }
 
-export function useWebsites() {
-    const { getToken } = useAuth();
+export function useWebsites(getToken?: (() => Promise<string | null>) | null) {
     const [websites, setWebsites] = useState<Website[]>([]);
 
     async function refreshWebsites() {    
         try {
-            const token = await getToken();
-            if (!token) {
-                console.error('No auth token available');
-                return;
-            }
+            const token = getToken ? await getToken() : null;
             
             const response = await axios.get(`${API_BACKEND_URL}/api/v1/websites`, {
-                headers: {
-                    Authorization:token,
-                },
+                headers: token ? {
+                    Authorization: token,
+                } : undefined,
             });
 
             setWebsites(response.data.websites);

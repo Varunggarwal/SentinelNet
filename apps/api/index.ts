@@ -4,15 +4,17 @@ import { authMiddleware } from "./middleware";
 import { prismaClient } from "db/client";
 import cors from "cors";
 import { Connection } from "@solana/web3.js";
-import { clerkMiddleware } from "@clerk/express";
 
 const connection = new Connection("https://api.mainnet-beta.solana.com");
 const app = express();
 const router = Router();
+const port = Number(process.env.API_PORT || 8080);
+const clerkEnabled = Boolean(
+  process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+);
 
 app.use(cors());
 app.use(express.json());
-app.use(clerkMiddleware());
 
 // Apply auth middleware to all routes in this router
 router.use(authMiddleware as any);
@@ -124,8 +126,20 @@ router.post("/payout/:validatorId", async (req, res): Promise<void> => {
     res.status(501).json({ error: 'Not implemented' });
 });
 
-app.use("/api/v1", router);
+async function main() {
+    if (clerkEnabled) {
+        const { clerkMiddleware } = await import("@clerk/express");
+        app.use(clerkMiddleware());
+    } else {
+        console.warn("Clerk keys are missing. API auth is running in local dev mode.");
+    }
 
-app.listen(8080);
+    app.use("/api/v1", router);
+    app.listen(port);
+    console.log(`App started on port ${port}`);
+}
 
-console.log("App started");
+main().catch((error) => {
+    console.error("Failed to start API", error);
+    process.exit(1);
+});
