@@ -5,7 +5,10 @@
     "postinstall": "bun run db:generate",
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "dev:stop": "/bin/zsh -lc 'pids=$(lsof -tiTCP:3000 -sTCP:LISTEN; lsof -tiTCP:8080 -sTCP:LISTEN; lsof -tiTCP:8081 -sTCP:LISTEN | sort -u); if [ -n \"$pids\" ]; then echo \"$pids\" | xargs kill -9; fi'",
+    "dev:fresh": "bun run dev:stop && turbo run dev",
     "db:generate": "bunx prisma generate --schema ./packages/db/prisma/schema.prisma",
+    "db:migrate:deploy": "bunx prisma migrate deploy --schema ./packages/db/prisma/schema.prisma",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"

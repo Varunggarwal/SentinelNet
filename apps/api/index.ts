@@ -4,17 +4,18 @@ import { authMiddleware } from "./middleware";
 import { prismaClient } from "db/client";
 import cors from "cors";
 import { Connection } from "@solana/web3.js";
+import { clerkMiddleware } from "@clerk/express";
 
 const connection = new Connection("https://api.mainnet-beta.solana.com");
 const app = express();
 const router = Router();
 const port = Number(process.env.PORT || process.env.API_PORT || 8080);
-const clerkEnabled = Boolean(
-  process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-);
+const clerkPublishableKey =
+  process.env.CLERK_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 app.use(cors());
 app.use(express.json());
+app.use(clerkMiddleware({ publishableKey: clerkPublishableKey }));
 
 // Apply auth middleware to all routes in this router
 router.use(authMiddleware as any);
@@ -24,15 +25,32 @@ router.post("/website", async (req, res): Promise<void> => {
         const userId = req.userId!;
         const { url } = req.body;
 
-        if (!url) {
+        if (!url || typeof url !== "string") {
             res.status(400).json({ error: 'URL is required' });
+            return;
+        }
+
+        const trimmedUrl = url.trim();
+
+        if (!trimmedUrl) {
+            res.status(400).json({ error: 'URL is required' });
+            return;
+        }
+
+        const normalizedUrl = trimmedUrl.startsWith("http://") || trimmedUrl.startsWith("https://")
+            ? trimmedUrl
+            : `https://${trimmedUrl}`;
+
+        try {
+            new URL(normalizedUrl);
+        } catch {
+            res.status(400).json({ error: "Invalid URL" });
             return;
         }
 
         const data = await prismaClient.websites.create({
             data: {
-                id: `website-${Date.now()}`,
-                url,
+                url: normalizedUrl,
                 userId
             }
         })
@@ -126,20 +144,6 @@ router.post("/payout/:validatorId", async (req, res): Promise<void> => {
     res.status(501).json({ error: 'Not implemented' });
 });
 
-async function main() {
-    if (clerkEnabled) {
-        const { clerkMiddleware } = await import("@clerk/express");
-        app.use(clerkMiddleware());
-    } else {
-        console.warn("Clerk keys are missing. API auth is running in local dev mode.");
-    }
-
-    app.use("/api/v1", router);
-    app.listen(port);
-    console.log(`App started on port ${port}`);
-}
-
-main().catch((error) => {
-    console.error("Failed to start API", error);
-    process.exit(1);
-});
+app.use("/api/v1", router);
+app.listen(port);
+console.log(`App started on port ${port}`);

@@ -74,6 +74,7 @@ function App() {
             <PricingCard
               title="Starter"
               price="29"
+              onSelect={() => router.push('/checkout?plan=starter')}
               features={[
                 "10 monitors",
                 "1-minute checks",
@@ -86,6 +87,7 @@ function App() {
               title="Professional"
               price="79"
               featured={true}
+              onSelect={() => router.push('/checkout?plan=professional')}
               features={[
                 "50 monitors",
                 "30-second checks",
@@ -98,6 +100,7 @@ function App() {
             <PricingCard
               title="Enterprise"
               price="199"
+              onSelect={() => router.push('/checkout?plan=enterprise')}
               features={[
                 "Unlimited monitors",
                 "15-second checks",
@@ -118,10 +121,10 @@ function App() {
             <div>
               <div className="flex items-center space-x-2">
                 <Activity className="h-6 w-6 text-indigo-400" />
-                <span className="text-xl font-bold">UptimeGuard</span>
+                <span className="text-xl font-bold">SentinelNet</span>
               </div>
               <p className="mt-4 text-gray-400">
-                Keeping your services online, always.
+                Trust-minimized uptime monitoring for serious infrastructure teams.
               </p>
             </div>
             <div>
@@ -150,7 +153,7 @@ function App() {
             </div>
           </div>
           <div className="mt-12 pt-8 border-t border-gray-800 text-center text-gray-400">
-            <p>&copy; 2025 UptimeGuard. All rights reserved.</p>
+            <p>&copy; 2026 SentinelNet. All rights reserved.</p>
           </div>
         </div>
       </footer>
@@ -168,7 +171,7 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode; titl
   );
 }
 
-function PricingCard({ title, price, features, featured = false }: { title: string; price: string; features: string[]; featured?: boolean }) {
+function PricingCard({ title, price, features, featured = false, onSelect }: { title: string; price: string; features: string[]; featured?: boolean; onSelect: () => void }) {
   return (
     <div className={`p-8 rounded-lg ${
       featured
@@ -189,13 +192,14 @@ function PricingCard({ title, price, features, featured = false }: { title: stri
         ))}
       </ul>
       <button
+        onClick={onSelect}
         className={`w-full py-3 rounded-lg transition ${
           featured
             ? 'bg-white text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-200'
             : 'bg-indigo-600 dark:bg-indigo-500 text-white hover:bg-indigo-700 dark:hover:bg-indigo-600'
         }`}
       >
-        Get Started
+        Continue to Payment
       </button>
     </div>
   );

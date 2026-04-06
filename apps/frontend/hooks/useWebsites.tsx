@@ -14,17 +14,27 @@ interface Website {
     }[];
 }
 
-export function useWebsites(getToken?: (() => Promise<string | null>) | null) {
+export function useWebsites(getToken: (() => Promise<string | null>) | null) {
     const [websites, setWebsites] = useState<Website[]>([]);
 
     async function refreshWebsites() {    
         try {
-            const token = getToken ? await getToken() : null;
+            if (!getToken) {
+                setWebsites([]);
+                return;
+            }
+
+            const token = await getToken();
+
+            if (!token) {
+                console.error('No auth token available');
+                return;
+            }
             
             const response = await axios.get(`${API_BACKEND_URL}/api/v1/websites`, {
-                headers: token ? {
-                    Authorization: token,
-                } : undefined,
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
             });
 
             setWebsites(response.data.websites);

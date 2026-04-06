@@ -3,12 +3,7 @@ import { prismaClient } from "db/client";
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
     try {
-        const clerkEnabled = Boolean(
-            process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-        );
-        const userId = clerkEnabled
-            ? req.auth?.userId
-            : process.env.LOCAL_USER_ID || "local-dev-user";
+        const userId = req.auth?.userId;
 
         if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });

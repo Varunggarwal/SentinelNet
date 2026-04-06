@@ -45,11 +45,7 @@ export default function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
-        <ClerkProvider>{content}</ClerkProvider>
-      ) : (
-        content
-      )}
+      <ClerkProvider>{content}</ClerkProvider>
     </html>
   );
 }
